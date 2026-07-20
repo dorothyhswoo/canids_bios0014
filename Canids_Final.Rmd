@@ -1,0 +1,732 @@
+---
+title: "canid_final"
+author: "Dorothy Woo"
+date: "2026-07-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Functional Diversity of Canids (Canidae) Under Projected Anthropogenic Extinction as Determined by Functional Trait-space Analysis
+
+## RSJZ0, UCL MRes Masters Dissertation
+## Supervisors: Dr Lucas Porto, Dr Natalie Cooper (Natural History Museum, London)
+
+The code below was used to answer study objects in the dissertation
+
+# Project set up
+## Load packages
+```{r load packages, message=FALSE, warning=FALSE}
+library(devtools)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+library(ggthemes)
+library(lme4)
+library("lmerTest")
+library(emmeans)
+library(vegan)
+library(sf)
+library(stringr)
+library(terra)
+library(purrr)
+library(missMDA) 
+library(FactoMineR) 
+library(nnet) 
+library(randomForest)
+library(viridis)
+library(factoextra)
+library(knitr)
+library(patchwork)
+library(tidyr)
+library(magick)
+library(grid)
+library(ggforce)
+library(png)
+library(Claddis)  
+library(geoscale) 
+library(dismo)  
+library(ape)
+library(tree)
+library(funspace)
+library(traitdata)
+library(reticulate)
+library(iucnsim)
+library(rredlist)
+library(corrplot)
+library(psych)
+library(scales)
+library(plotly)
+library(ggrepel)
+library(geometry)
+library(gridExtra)
+library(svglite)
+library(geiger)
+library(cowplot)
+library(tibble)
+library(sp)
+library(zoo)
+library(gganimate)
+library(phytools)
+library(palaeoverse)
+library(Rphylopars)
+library(hypervolume)
+library(rgl)
+library(FNN)
+library(picante)
+library(lubridate)
+```
+
+# Data preparation
+## Load phylogeny 
+```{r load phylogeny,message=FALSE,warning=FALSE}
+# Get all species name
+canidae_species_names <- read.csv(
+  "canidae_SFaurby.csv",
+  stringsAsFactors = FALSE
+) 
+canidae_species_names <- paste(canidae_species_names$Genus, canidae_species_names$Species, sep = "_")
+
+# Load phylogenetic tree
+phylo <- ape::read.nexus("SFaurby_phylogeny.nex")   
+
+# Trim tree to contain only Canidae
+canidae_phylo <- sapply(phylo, function(tr) {
+  any(tr$tip.label %in% canidae_species_names)
+})
+phylo_canidae <- phylo[canidae_phylo]
+phylo_canidae <- lapply(phylo_canidae, function(tr) {
+  keep <- intersect(tr$tip.label, canidae_species_names)
+  drop.tip(tr, setdiff(tr$tip.label, keep))
+})
+class(phylo_canidae) <- "multiPhylo"
+```
+
+## Load data with IUCN status
+```{r iucn, message=FALSE}
+iucn_status <- read_csv("iucn_status.csv")
+```
+
+## Load PanTHERIA data 
+```{r load pantheria data, warning=FALSE, message=FALSE}
+# pantheria
+data("pantheria")
+pantheria <- pantheria %>% filter(Family=="Canidae") %>% mutate(Name=paste0(Genus,"_",Species))
+pantheria <- pantheria[, colMeans(!is.na(pantheria)) > 0.5] # retain columns with <50% missing data
+```
+
+## Load RBL dataset
+```{r rbl data, warning=FALSE, message=FALSE}
+rbl <- read_csv("rbl_martina.csv") %>% mutate(Name = TaxonName) %>% dplyr::select(Name, RBL)
+```
+
+## Load IUCN geographic distribution data
+```{r IUCN geodata, warning=FALSE,message=FALSE}
+iucn <- st_read("MAMMALS_TERRESTRIAL_ONLY.shp")  
+iucn <- iucn %>% mutate(sci_name = gsub(" ", "_", sci_name)) %>% filter(family=="CANIDAE")
+
+continents <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>%
+  st_make_valid() %>%
+  group_by(continent) %>%
+  summarise(geometry = st_union(geometry))
+continents <- st_transform(continents, st_crs(iucn))
+
+sf::sf_use_s2(FALSE)
+iucn <- st_collection_extract(st_make_valid(iucn), "POLYGON")
+continents <- st_collection_extract(st_make_valid(continents), "POLYGON")
+
+# Check which continents are overlapping with species distribution
+hits <- st_intersects(continents, iucn, sparse = FALSE)
+present_continents <- continents$continent[rowSums(hits) > 0]
+n_continents <- length(present_continents)
+continent_list <- present_continents
+species_list <- split(iucn, iucn$sci_name)
+
+# Create list of dist across continents
+continent_results <- purrr::map_df(names(species_list), function(sp) {
+  sp_poly <- species_list[[sp]]
+  hits <- st_intersects(continents, sp_poly, sparse = FALSE)
+  present <- continents$continent[rowSums(hits) > 0]
+  tibble(
+    Name = sp,
+    n_continents = length(present),
+    continents = paste(present, collapse = ", ")
+  )
+})
+```
+
+## Compile all traits
+```{r all traits data,message=FALSE}
+# Select traits needed
+all_data <- list(
+  iucn_status,
+  pantheria,
+  rbl,
+  continent_results
+)
+
+traits <- purrr::reduce(all_data, full_join, by = "Name") 
+
+write_csv(traits, "alltraits.csv")
+```
+
+## Reload data after manually changing names that are duplicated
+```{r trait data processing, message=FALSE, warning=FALSE}
+# Reload trait data after manual fix
+traits <- read_csv("selected_traits_final.csv")
+## In this excel, I've also defined all extinction scenarios manually 
+```
+
+## Log transform all traits 
+```{r transform data}
+traits <- traits %>% 
+  # log-transform
+  mutate(across(
+    .cols = c(
+      RBL_original,
+      Mass_original),
+    .fns = ~log(.x), 
+    .names = "{.col}_log"
+  )) %>% 
+  # rescale from 0 to 1
+  mutate(across(
+    .cols = ends_with("_log"),
+    .fns = ~ scales::rescale(.x, to = c(0,1)),
+    .names = "{.col}_scaled"
+  )) 
+```
+## Define IUCN colors 
+```{r iucn colors}
+# Define IUCN colors
+iucn_cols <- c(
+  "LC" = "grey80",
+  "NT" = "darkturquoise",
+  "EN" = "orange",
+  "CR" = "red")
+```
+
+## Define continent colours
+```{r cont colors}
+# Define continent colors
+continent_cols <- c(
+  "Global" = "black",
+  "South America" = "hotpink",
+  "North America" = "lightblue",
+  "Africa" = "lightgreen",
+  "Eurasia" = "yellow",
+  "Asia" = "orange",
+  "Europe" = "purple")
+```
+
+
+## Prepare funspace df
+```{r extinction scenarios}
+funspace_df <- traits %>% dplyr::select(
+  Name, IUCN_status, continents, RBL_original_log_scaled, Mass_original_log_scaled,
+  Extinction_CR_EN_NT, Extinction_SA_NT, Extinction_NA_NT, Extinction_Africa_NT, Extinction_Eurasia_NT) %>% 
+  mutate(RBL = RBL_original_log_scaled, Mass = Mass_original_log_scaled) 
+```
+
+# Research Objective 1: How do extinction events affect FD globally
+## Section 1: Global extinction of threatened and near-threatened species
+```{r funspace global}
+funspace_df_num <- funspace_df %>% dplyr::select(RBL, Mass)
+
+# Create trait space
+traitspace <- funspace(x = funspace_df_num, n_divisions = 300)
+summary(traitspace)
+plot(x = traitspace, type = "global", quant.plot = TRUE, arrows = TRUE, arrows.length = 0.6, axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+
+# Global extinction of CR EN NT
+traitspace_CR_EN_NT <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_CR_EN_NT, n_divisions = 300)
+summary(traitspace_CR_EN_NT)
+plot(x = traitspace_CR_EN_NT, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+
+# Compile results
+global_fric_original <- traitspace$FD$global$FRich
+global_fdiv_original <- traitspace$FD$global$FDiv
+global_extinction_fric <- traitspace_CR_EN_NT$FD$groups$FRich["retained"]
+global_extinction_fdiv <- traitspace_CR_EN_NT$FD$groups$FDiv["retained"]
+global_fric_change <- 100*(global_extinction_fric-global_fric_original)/global_fric_original
+
+global_results <- tibble::tibble(
+  Scenario = c("Global", "Removing CR, EN, NT"),
+  FRic = c(global_fric_original, global_extinction_fric),
+  FRic_change_percent = c("",global_fric_change),
+  FDiv = c(global_fdiv_original, global_extinction_fdiv)
+)
+
+global_results
+```
+## Section 2: Continental extinction of threatened and near-threatened species
+```{r funspace continent}
+# Create trait space for each continent
+traitspace_continent <-  funspace(x = funspace_df_num, PCs=c(1,2), group.vec = funspace_df$continents, n_divisions = 300)
+plot(x = traitspace_continent, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(traitspace_continent)
+
+# Removing SA NT
+traitspace_continent_SA <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_SA_NT, n_divisions = 300)
+plot(x = traitspace_continent_SA, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(traitspace_continent_SA)
+
+# Removing North America NT
+traitspace_continent_NA <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_NA_NT, n_divisions = 300)
+plot(x = traitspace_continent_NA, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(traitspace_continent_NA)
+
+# Removing Africa NT
+traitspace_continent_Africa <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_Africa_NT, n_divisions = 300)
+plot(x = traitspace_continent_Africa, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(traitspace_continent_Africa)
+
+# Removing Eurasia NT
+traitspace_continent_Eurasia <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_Eurasia_NT, n_divisions = 300)
+plot(x = traitspace_continent_Eurasia, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(traitspace_continent_Eurasia)
+
+# Compile results
+sa_fric <- traitspace_continent_SA$FD$groups$FRich["retained"]
+sa_fdiv <- traitspace_continent_SA$FD$groups$FDiv["retained"]
+
+na_fric <- traitspace_continent_NA$FD$groups$FRich["retained"]
+na_fdiv <- traitspace_continent_NA$FD$groups$FDiv["retained"]
+
+africa_fric <- traitspace_continent_Africa$FD$groups$FRich["retained"]
+africa_fdiv <- traitspace_continent_Africa$FD$groups$FDiv["retained"]
+
+eurasia_fric <- traitspace_continent_Eurasia$FD$groups$FRich["retained"]
+eurasia_fdiv <- traitspace_continent_Eurasia$FD$groups$FDiv["retained"]
+
+sa_fric_change <- 100*(sa_fric-global_fric_original)/global_fric_original
+na_fric_change <- 100*(na_fric-global_fric_original)/global_fric_original
+africa_fric_change <- 100*(africa_fric-global_fric_original)/global_fric_original
+eurasia_fric_change <- 100*(eurasia_fric-global_fric_original)/global_fric_original
+
+continental_results <- tibble::tibble(
+  Continent = c("Global", "South America", "North America",  "Africa", "Eurasia"),
+  FRic = c(global_fric_original, sa_fric, na_fric, africa_fric, eurasia_fric),
+  FRic_change_percent = c("",sa_fric_change, na_fric_change, 
+                          africa_fric_change,eurasia_fric_change),
+  FDiv = c(global_fdiv_original, sa_fdiv, na_fdiv, africa_fdiv, eurasia_fdiv)
+)
+
+continental_results
+```
+
+# Research Objective 2: How do extinction events affect FD continentally 
+```{r continent separate results}
+# Comparing FRich for each continent after removing CR/EN/NT species 
+par(mfrow = c(2,2))
+  # South America
+df_temp <- funspace_df %>% filter(continents == "South America")
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_SA_NT, n_divisions = 300)
+summary(temp_funspace)
+SA_cfrich_original <- temp_funspace$FD$global$FRich
+SA_cfrich_new <- temp_funspace$FD$groups$FRich
+SA_cfdiv_original <- temp_funspace$FD$global$FDiv
+SA_cfdiv_new <- temp_funspace$FD$groups$FDiv
+plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+
+  # North America
+df_temp <- funspace_df %>% filter(continents == "North America")
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_NA_NT, n_divisions = 300)
+summary(temp_funspace)
+NA_cfrich_original <- temp_funspace$FD$global$FRich
+NA_cfrich_new <- temp_funspace$FD$groups$FRich
+NA_cfdiv_original <- temp_funspace$FD$global$FDiv
+NA_cfdiv_new <- temp_funspace$FD$groups$FDiv
+plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+
+  # Africa 
+df_temp <- funspace_df %>% filter(continents == "Africa")
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_Africa_NT, n_divisions = 300)
+summary(temp_funspace)
+Africa_cfrich_original <- temp_funspace$FD$global$FRich
+Africa_cfrich_new <- temp_funspace$FD$groups$FRich
+Africa_cfdiv_original <- temp_funspace$FD$global$FDiv
+Africa_cfdiv_new <- temp_funspace$FD$groups$FDiv
+plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+
+  # Eurasia
+df_temp <- funspace_df %>% filter(continents == "Eurasia")
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_Eurasia_NT, n_divisions = 300)
+summary(temp_funspace)
+Eurasia_cfrich_original <- temp_funspace$FD$global$FRich
+Eurasia_cfrich_new <- temp_funspace$FD$groups$FRich
+Eurasia_cfdiv_original <- temp_funspace$FD$global$FDiv
+Eurasia_cfdiv_new <- temp_funspace$FD$groups$FDiv
+plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+
+# FRich percentage change results
+SA_cfrich_new <- as.numeric(SA_cfrich_new["retained"])
+SA_cfdiv_new <- as.numeric(SA_cfdiv_new["retained"])
+SA_cfrich_percent <- ((SA_cfrich_new-SA_cfrich_original)/SA_cfrich_original)*100
+
+NA_cfrich_new <- as.numeric(NA_cfrich_new["retained"])
+NA_cfdiv_new <- as.numeric(NA_cfdiv_new["retained"])
+NA_cfrich_percent <- ((NA_cfrich_new-NA_cfrich_original)/NA_cfrich_original)*100
+
+Africa_cfrich_new <- as.numeric(Africa_cfrich_new["retained"])
+Africa_cfdiv_new <- as.numeric(Africa_cfdiv_new["retained"])
+Africa_cfrich_percent <- ((Africa_cfrich_new-Africa_cfrich_original)/Africa_cfrich_original)*100
+
+Eurasia_cfrich_new <- as.numeric(Eurasia_cfrich_new["retained"])
+Eurasia_cfdiv_new <- as.numeric(Eurasia_cfdiv_new["retained"])
+Eurasia_cfrich_percent <- ((Eurasia_cfrich_new-Eurasia_cfrich_original)/Eurasia_cfrich_original)*100
+
+# Compile results
+continent_standalone_results <- tibble::tibble(
+  Continent = c("South America", "South America", "North America", "North America", "Africa","Africa", "Eurasia", "Eurasia"),
+  Scenario = c("Original", "Post-extinction", "Original", "Post-extinction", "Original", "Post-extinction", "Original", "Post-extinction"),
+  FRic = c(SA_cfrich_original, SA_cfrich_new, NA_cfrich_original, NA_cfrich_new, 
+           Africa_cfrich_original, Africa_cfrich_new, Eurasia_cfrich_original, Eurasia_cfrich_new),
+  Change_in_FRic = c("-", SA_cfrich_percent, "-", NA_cfrich_percent, "-", Africa_cfrich_percent, "-", Eurasia_cfrich_percent),
+  FDiv = c(SA_cfdiv_original, SA_cfdiv_new, NA_cfdiv_original, NA_cfdiv_new, 
+           Africa_cfdiv_original, Africa_cfdiv_new, Eurasia_cfdiv_original, Eurasia_cfdiv_new))
+
+continent_standalone_results
+```
+
+# Research Objective 3: How do contemporary, anthropogenic extinction events compare to past historical events
+## Use PBDB database to get continent and time information
+```{r pbdb, warning=FALSE, message=FALSE}
+pbdb <- read_csv("pbdb_data.csv")
+pbdb <- pbdb %>% dplyr::select(Name, lng, lat, max_ma, min_ma) %>% mutate(mid_ma = (max_ma+min_ma)/2)
+
+# convert longitude and latitude points to sf points 
+pbdb_sfpts <- st_as_sf(pbdb, coords = c("lng","lat"), crs = 4326)
+# overlay with continent (check iucn geographic chunk)
+pbdb_sfpts <- st_transform(pbdb_sfpts, st_crs(continents))
+# add new continent column
+pbdb <- st_join(pbdb_sfpts, continents["continent"])
+
+# assign a period for each species
+bins <- time_bins(scale = "international ages")
+pbdb <- bin_time(
+  occdf = pbdb,
+  bins = bins,
+  min_ma = "min_ma",
+  max_ma = "max_ma",
+  method = "majority"
+)
+bins_name <- dplyr::select(bins, bin, interval_name) 
+pbdb <- left_join(pbdb, bins, by=c("bin_assignment" = "bin"))
+pbdb <- pbdb %>% mutate(period = interval_name) 
+pbdb <- pbdb %>% st_drop_geometry() %>% 
+  mutate(mid_ma = mid_ma.x) %>% 
+  dplyr::select(Name, continent, bin_assignment, period, mid_ma) %>% 
+  distinct(Name, continent, period, bin_assignment, mid_ma)
+
+# Mass and RBL data
+massrbl_porto <- read.delim("mass_&_RBL_porto.txt")
+supp_rbl <- read_csv("supp_rbl.csv") %>% dplyr::select(species, `blade/m1`)
+extinct <- left_join(pbdb,massrbl_porto,by=c("Name" = "species")) 
+extinct <- left_join(extinct,supp_rbl,by=c("Name" = "species")) 
+extant <- traits %>% dplyr::select(Name, RBL_original, Mass_original, continents) %>% 
+  mutate(period = "extant") %>% 
+  separate_rows(continents, sep = ", ") %>% 
+  mutate(mass = Mass_original, rbl = RBL_original, continent = continents) %>% 
+  dplyr::select(Name, mass, rbl, continent, period)
+historical <- bind_rows(extant, extinct) 
+historical_global <- historical %>% dplyr::select(Name, rbl, mass, period, bin_assignment, mid_ma) %>% distinct()
+
+# since some mass and rbl data is missing for extinct species, use rphylopars to imputate 
+tree <- phylo[[1]]
+historical_global <- historical_global %>% filter(Name %in% tree$tip.label)
+imputation <- historical_global %>% mutate(species = Name) %>% dplyr::select(species, rbl, mass)
+imputation <- imputation[imputation$species %in% tree$tip.label,]
+imputation <- data.frame( species = imputation$species, rbl = imputation$rbl, mass = imputation$mass, stringsAsFactors = FALSE)
+tree$edge.length[which(tree$edge.length==0)]=0.0001
+fit <- Rphylopars::phylopars(trait_data = imputation, tree = tree)
+imputed <- fit$trait_data
+
+# rejoin imputed dataset with original dataset
+historical_global_imputed <- left_join(historical_global, imputed, by = c("Name" = "species")) %>% 
+  mutate(rbl = case_when(!is.na(rbl.x)~rbl.x, TRUE ~rbl.y),
+         mass = case_when(!is.na(mass.x)~mass.x, TRUE ~mass.y)) %>% dplyr::select(Name, rbl, mass, period, bin_assignment, mid_ma) %>% distinct() 
+```
+
+## Create trait space for each time period funspace
+```{r funspace periods}
+historical_funspace_df <- historical_global_imputed %>% filter(!is.na(rbl)) %>% 
+  mutate(across(
+    .cols = c(
+      rbl, mass),
+    .fns = ~log(.x), 
+    .names = "{.col}_log"
+  )) %>% 
+  # rescale from 0 to 1
+  mutate(across(
+    .cols = ends_with("_log"),
+    .fns = ~ scales::rescale(.x, to = c(0,1)),
+    .names = "{.col}_scaled"
+  )) 
+
+historical_funspace_df$bin_assignment[is.na(historical_funspace_df$bin_assignment)] <- 200
+
+# add subfamily information
+historical_funspace_df$genus <- sub("_.*","", historical_funspace_df$Name)
+subfamily_lookup <- c(
+  # Hesperocyoninae
+  Hesperocyon="Hesperocyoninae", Otarocyon="Hesperocyoninae", Osbornodon="Hesperocyoninae", Archaeocyon="Hesperocyoninae", Mesocyon="Hesperocyoninae", 
+  Cynodesmus="Hesperocyoninae", Enhydrocyon="Hesperocyoninae", Paraenhydrocyon="Hesperocyoninae", Cormocyon="Hesperocyoninae", Sunkahetanka="Hesperocyoninae",
+  Ectopocynus = "Hesperocyoninae", Philotrox = "Hesperocyoninae",
+  # Borophaginae
+  Borophagus="Borophaginae", Epicyon="Borophaginae", Aelurodon="Borophaginae", Carpocyon="Borophaginae",Paratomarctus="Borophaginae", Protepicyon="Borophaginae",
+  Cynarctus="Borophaginae", Cynarctoides="Borophaginae", Phlaocyon="Borophaginae", Metalopex="Borophaginae", Tomarctus = "Borophaginae", 
+  Tephrocyon="Borophaginae", Euoplocyon="Borophaginae", Rhizocyon = "Borophaginae", Desmocyon = "Borophaginae", Metatomarctus = "Borophaginae", 
+  Microtomarctus = "Borophaginae", Oxetocyon = "Borophaginae", Paracynarctus = "Borophaginae", Protomarctus = "Borophaginae", Psalidocyon = "Borophaginae",
+  # Caninae
+  Canis="Caninae", Vulpes="Caninae", Lycalopex="Caninae", Lycaon="Caninae", Cuon="Caninae", Urocyon="Caninae", Cerdocyon="Caninae", Chrysocyon="Caninae", 
+  Speothos="Caninae", Atelocynus="Caninae", Nyctereutes="Caninae", Xenocyon="Caninae", Eucyon="Caninae", Leptocyon="Caninae", Protocyon="Caninae", Otocyon = "Caninae"
+)
+historical_funspace_df$subfamily <- subfamily_lookup[historical_funspace_df$genus]
+
+# also add ts te data
+tste <- read.delim("TS_TE_Canidae.txt")
+historical_funspace_df <-  left_join(historical_funspace_df, tste, by = c("Name" = "species"))
+
+# periods to look at
+historical_funspace_df <- historical_funspace_df %>% 
+  mutate(Emergence_of_Canidae = case_when(TE<=37.5 & TS >=33.7 ~"retained", TRUE~"not")) %>% 
+  mutate(Decline_of_broadleaf_forest = case_when(TS>=28.5 & TE<=33.7 ~"retained", TRUE~"not")) %>% 
+  mutate(Expansion_of_sparse_temperate_forest = case_when(TS>=25.7 & TE<=28.5~"retained", TRUE~"not")) %>% 
+  mutate(Catgap = case_when(TS>=18.7 & TE<=25.7~"retained", TRUE~"not")) %>% 
+  mutate(Catgap_filled = case_when(TS>=16.7& TE<=18.7 ~"retained", TRUE~"not")) %>% 
+  mutate(Mid_miocene_climatic_optimum = case_when(TS>=13.8 & TE<=16.7~"retained", TRUE~"not")) %>% 
+  mutate(Extinction_of_Hesperocyoninaes = case_when(TS>=9.8 & TE<=13.8~"retained", TRUE~"not")) %>% 
+  mutate(C4_grassland_expansion = case_when(TS>=7.5 & TE<=9.8~"retained", TRUE~"not")) %>% 
+  mutate(Maximum_diversity_of_horses = case_when(TS>=4.3 & TE<=7.5~"retained", TRUE~"not")) %>% 
+  mutate(Isthmus_of_Panama = case_when(TS>=2.6& TE<=4.3 ~"retained", TRUE~"not")) %>% 
+  mutate(Extinction_of_Borophaginaes = case_when(TS>=0.4 & TE<=2.6~"retained", TRUE~"not")) %>% 
+  mutate(Megafauna_extinction = case_when(TS>=0 & TE<=0.4~"retained", TRUE~"not")) %>% 
+  mutate(Current = case_when(period == "extant" ~"extant", TRUE~"extinct")) %>% 
+  mutate(RBL = rbl_log_scaled, Mass = mass_log_scaled)
+
+# run funspace
+historical_funspace_df_num <- historical_funspace_df %>% dplyr::select(RBL, Mass)
+historical_trait_space_funspace <- funspace(x = historical_funspace_df_num, n_divisions = 300)
+summary(historical_trait_space_funspace)
+plot(x = historical_trait_space_funspace, type = "global", quant.plot = TRUE, axis.title.x = "RBL", axis.title.y = "Mass")
+historical_fric <- historical_trait_space_funspace$FD$global$FRich
+historical_fdiv <- historical_trait_space_funspace$FD$global$FDiv
+
+# past vs present (all-time)
+historical_trait_space_funspace_extant <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Current`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_extant, type = "groups", which.group = "extant",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_extant)
+Extant_fric <- historical_trait_space_funspace_extant$FD$groups$FRich["extant"]
+Extant_fdiv <- historical_trait_space_funspace_extant$FD$groups$FDiv["extant"]
+Extinct_fric <- historical_trait_space_funspace_extant$FD$groups$FRich["extinct"]
+Extinct_fdiv <- historical_trait_space_funspace_extant$FD$groups$FDiv["extinct"]
+  
+extant_results <- tibble::tibble(
+  Scenario = c("All-time", "Extant", "Extinct"),
+  FRic = c(historical_fric, Extant_fric, Extinct_fric),
+  FDiv = c(historical_fdiv, Extant_fdiv, Extinct_fdiv))
+
+# all events
+  # Emergence_of_Canidae
+historical_trait_space_funspace_Emergence_of_Canidae <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Emergence_of_Canidae`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Emergence_of_Canidae, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Emergence_of_Canidae)
+Emergence_of_Canidae_fric <- historical_trait_space_funspace_Emergence_of_Canidae$FD$groups$FRich["retained"]
+Emergence_of_Canidae_fdiv <- historical_trait_space_funspace_Emergence_of_Canidae$FD$groups$FDiv["retained"]
+  
+  # Decline_of_broadleaf_forest
+historical_trait_space_funspace_Decline_of_broadleaf_forest <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Decline_of_broadleaf_forest`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Decline_of_broadleaf_forest, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Decline_of_broadleaf_forest)
+Decline_of_broadleaf_forest_fric <- historical_trait_space_funspace_Decline_of_broadleaf_forest$FD$groups$FRich["retained"]
+Decline_of_broadleaf_forest_fdiv <- historical_trait_space_funspace_Decline_of_broadleaf_forest$FD$groups$FDiv["retained"]
+
+  # Expansion_of_sparse_temperate_forest
+historical_trait_space_funspace_Expansion_of_sparse_temperate_forest <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Expansion_of_sparse_temperate_forest`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Expansion_of_sparse_temperate_forest, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Expansion_of_sparse_temperate_forest)
+Expansion_of_sparse_temperate_forest_fric <- historical_trait_space_funspace_Expansion_of_sparse_temperate_forest$FD$groups$FRich["retained"]
+Expansion_of_sparse_temperate_forest_fdiv <- historical_trait_space_funspace_Expansion_of_sparse_temperate_forest$FD$groups$FDiv["retained"]
+  
+  # Catgap
+historical_trait_space_funspace_Catgap <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Catgap`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Catgap, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Catgap)
+Catgap_fric <- historical_trait_space_funspace_Catgap$FD$groups$FRich["retained"]
+Catgap_fdiv <- historical_trait_space_funspace_Catgap$FD$groups$FDiv["retained"]
+
+  # Catgap_filled
+historical_trait_space_funspace_Catgap_filled <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Catgap_filled`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Catgap_filled, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Catgap_filled)
+Catgap_filled_fric <- historical_trait_space_funspace_Catgap_filled$FD$groups$FRich["retained"]
+Catgap_filled_fdiv <- historical_trait_space_funspace_Catgap_filled$FD$groups$FDiv["retained"]
+  
+  # Mid_miocene_climatic_optimum
+historical_trait_space_funspace_Mid_miocene_climatic_optimum <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Mid_miocene_climatic_optimum`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Mid_miocene_climatic_optimum, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Mid_miocene_climatic_optimum)
+Mid_miocene_climatic_optimum_fric <- historical_trait_space_funspace_Mid_miocene_climatic_optimum$FD$groups$FRich["retained"]
+Mid_miocene_climatic_optimum_fdiv <- historical_trait_space_funspace_Mid_miocene_climatic_optimum$FD$groups$FDiv["retained"]
+
+  # Extinction_of_Hesperocyoninaes
+historical_trait_space_funspace_Extinction_of_Hesperocyoninaes <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Extinction_of_Hesperocyoninaes`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Extinction_of_Hesperocyoninaes, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Extinction_of_Hesperocyoninaes)
+Extinction_of_Hesperocyoninaes_fric <- historical_trait_space_funspace_Extinction_of_Hesperocyoninaes$FD$groups$FRich["retained"]
+Extinction_of_Hesperocyoninaes_fdiv <- historical_trait_space_funspace_Extinction_of_Hesperocyoninaes$FD$groups$FDiv["retained"]
+  
+  # C4_grassland_expansion
+historical_trait_space_funspace_C4_grassland_expansion <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`C4_grassland_expansion`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_C4_grassland_expansion, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_C4_grassland_expansion)
+C4_grassland_expansion_fric <- historical_trait_space_funspace_C4_grassland_expansion$FD$groups$FRich["retained"]
+C4_grassland_expansion_fdiv <- historical_trait_space_funspace_C4_grassland_expansion$FD$groups$FDiv["retained"]
+
+  # Maximum_diversity_of_horses
+historical_trait_space_funspace_Maximum_diversity_of_horses <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Maximum_diversity_of_horses`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Maximum_diversity_of_horses, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Maximum_diversity_of_horses)
+Maximum_diversity_of_horses_fric <- historical_trait_space_funspace_Maximum_diversity_of_horses$FD$groups$FRich["retained"]
+Maximum_diversity_of_horses_fdiv <- historical_trait_space_funspace_Maximum_diversity_of_horses$FD$groups$FDiv["retained"]
+  
+  # Isthmus_of_Panama
+historical_trait_space_funspace_Isthmus_of_Panama <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Isthmus_of_Panama`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Isthmus_of_Panama, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Isthmus_of_Panama)
+Isthmus_of_Panama_fric <- historical_trait_space_funspace_Isthmus_of_Panama$FD$groups$FRich["retained"]
+Isthmus_of_Panama_fdiv <- historical_trait_space_funspace_Isthmus_of_Panama$FD$groups$FDiv["retained"]
+
+  # Extinction_of_Borophaginaes
+historical_trait_space_funspace_Extinction_of_Borophaginaes <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Extinction_of_Borophaginaes`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Extinction_of_Borophaginaes, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Extinction_of_Borophaginaes)
+Extinction_of_Borophaginaes_fric <- historical_trait_space_funspace_Extinction_of_Borophaginaes$FD$groups$FRich["retained"]
+Extinction_of_Borophaginaes_fdiv <- historical_trait_space_funspace_Extinction_of_Borophaginaes$FD$groups$FDiv["retained"]
+  
+  # Megafauna_extinction
+historical_trait_space_funspace_Megafauna_extinction <-  funspace(x = historical_funspace_df_num, group.vec = historical_funspace_df$`Megafauna_extinction`, n_divisions = 300)
+plot(x = historical_trait_space_funspace_Megafauna_extinction, type = "groups", which.group = "retained",quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+summary(historical_trait_space_funspace_Megafauna_extinction)
+Megafauna_extinction_fric <- historical_trait_space_funspace_Megafauna_extinction$FD$groups$FRich["retained"]
+Megafauna_extinction_fdiv <- historical_trait_space_funspace_Megafauna_extinction$FD$groups$FDiv["retained"]
+
+# Collate all results
+historical_results <- tibble::tibble(
+  Scenario = c("Global", "Emergence of Canidae", "Decline of broadleaf forest", "Expansion of sparse temperate forest", "Catgap", "Catgap", "Mid miocene climatic optimum",
+               "Extinction of Hesperocyoninaes", "C4 grassland expansion", "Maximum diversity of horses", "Isthmus of Panama", "Extinction of Borophaginaes", "Megafauna extinction"),
+  FRic = c(historical_fric, Emergence_of_Canidae_fric, Decline_of_broadleaf_forest_fric, Expansion_of_sparse_temperate_forest_fric, Catgap_fric, Catgap_filled_fric,
+           Mid_miocene_climatic_optimum_fric, Extinction_of_Hesperocyoninaes_fric, C4_grassland_expansion_fric, Maximum_diversity_of_horses_fric, Isthmus_of_Panama_fric,
+           Extinction_of_Borophaginaes_fric, Megafauna_extinction_fric),
+  FDiv = c(historical_fdiv, Emergence_of_Canidae_fdiv, Decline_of_broadleaf_forest_fdiv, Expansion_of_sparse_temperate_forest_fdiv, Catgap_fdiv, Catgap_filled_fdiv,
+           Mid_miocene_climatic_optimum_fdiv, Extinction_of_Hesperocyoninaes_fdiv, C4_grassland_expansion_fdiv, Maximum_diversity_of_horses_fdiv, Isthmus_of_Panama_fdiv,
+           Extinction_of_Borophaginaes_fdiv, Megafauna_extinction_fdiv))
+
+historical_results
+```
+
+## Plot results
+```{r plot historical}
+# All periods
+events_list <- list(
+  Emergence_of_Canidae = historical_trait_space_funspace_Emergence_of_Canidae,
+  Decline_of_broadleaf_forest = historical_trait_space_funspace_Decline_of_broadleaf_forest,
+  Expansion_of_sparse_temperate_forest = historical_trait_space_funspace_Expansion_of_sparse_temperate_forest,
+  Catgap = historical_trait_space_funspace_Catgap,
+  Catgap_filled = historical_trait_space_funspace_Catgap_filled,
+  Mid_miocene_climatic_optimum = historical_trait_space_funspace_Mid_miocene_climatic_optimum,
+  Extinction_of_Hesperocyoninaes = historical_trait_space_funspace_Extinction_of_Hesperocyoninaes,
+  C4_grassland_expansion = historical_trait_space_funspace_C4_grassland_expansion,
+  Maximum_diversity_of_horses = historical_trait_space_funspace_Maximum_diversity_of_horses,
+  Isthmus_of_Panama = historical_trait_space_funspace_Isthmus_of_Panama,
+  Extinction_of_Borophaginaes = historical_trait_space_funspace_Extinction_of_Borophaginaes,
+  Megafauna_extinction = historical_trait_space_funspace_Megafauna_extinction
+)
+
+par(mfrow=c(3,4))
+
+for (nm in names(events_list)) {
+
+  plot(
+    x = events_list[[nm]],
+    type = "groups",
+    which.group = "retained",
+    quant.plot = TRUE,
+    globalContour = TRUE,
+    pnt = TRUE,
+    pnt.cex = 0.1,
+    pnt.col = rgb(0.2,0.8,0.1,alpha=0.2),
+    axis.title.x = "RBL",
+    axis.title.y = "Mass",
+    axis.title.cex = 0.7,
+    axis.cex = 0.7
+  )
+
+  title(gsub("_"," ",nm), cex.main = 1)
+}
+
+# Only major extinction events
+extinction_events_list <- list(
+  Extinction_of_Hesperocyoninaes = historical_trait_space_funspace_Extinction_of_Hesperocyoninaes,
+  Extinction_of_Borophaginaes = historical_trait_space_funspace_Extinction_of_Borophaginaes,
+  Megafauna_extinction = historical_trait_space_funspace_Megafauna_extinction
+)
+
+par(mfrow=c(1,3))
+
+for (nm in names(extinction_events_list)) {
+
+  plot(
+    x = events_list[[nm]],
+    type = "groups",
+    which.group = "retained",
+    quant.plot = TRUE,
+    globalContour = TRUE,
+    pnt = TRUE,
+    pnt.cex = 0.1,
+    pnt.col = rgb(0.2,0.8,0.1,alpha=0.2),
+    axis.title.x = "RBL",
+    axis.title.y = "Mass",
+    axis.title.cex = 0.7,
+    axis.cex = 0.7
+  )
+
+  title(gsub("_"," ",nm), cex.main = 1)
+}
+
+# Borophaginae decline
+Borophaginae_events_list <- list(
+  Maximum_diversity_of_horses = historical_trait_space_funspace_Maximum_diversity_of_horses,
+  Isthmus_of_Panama = historical_trait_space_funspace_Isthmus_of_Panama,
+  Extinction_of_Borophaginaes = historical_trait_space_funspace_Extinction_of_Borophaginaes
+)
+
+par(mfrow=c(1,3))
+
+for (nm in names(Borophaginae_events_list)) {
+
+  plot(
+    x = events_list[[nm]],
+    type = "groups",
+    which.group = "retained",
+    quant.plot = TRUE,
+    globalContour = TRUE,
+    pnt = TRUE,
+    pnt.cex = 0.1,
+    pnt.col = rgb(0.2,0.8,0.1,alpha=0.2),
+    axis.title.x = "RBL",
+    axis.title.y = "Mass",
+    axis.title.cex = 0.7,
+    axis.cex = 0.7
+  )
+
+  title(gsub("_"," ",nm), cex.main = 1)
+}
+```
