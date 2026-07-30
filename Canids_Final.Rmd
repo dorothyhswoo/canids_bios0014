@@ -123,49 +123,13 @@ pantheria <- pantheria[, colMeans(!is.na(pantheria)) > 0.5] # retain columns wit
 rbl <- read_csv("rbl_martina.csv") %>% mutate(Name = TaxonName) %>% dplyr::select(Name, RBL)
 ```
 
-## Load IUCN geographic distribution data
-```{r IUCN geodata, warning=FALSE,message=FALSE}
-iucn <- st_read("MAMMALS_TERRESTRIAL_ONLY.shp")  
-iucn <- iucn %>% mutate(sci_name = gsub(" ", "_", sci_name)) %>% filter(family=="CANIDAE")
-
-continents <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>%
-  st_make_valid() %>%
-  group_by(continent) %>%
-  summarise(geometry = st_union(geometry))
-continents <- st_transform(continents, st_crs(iucn))
-
-sf::sf_use_s2(FALSE)
-iucn <- st_collection_extract(st_make_valid(iucn), "POLYGON")
-continents <- st_collection_extract(st_make_valid(continents), "POLYGON")
-
-# Check which continents are overlapping with species distribution
-hits <- st_intersects(continents, iucn, sparse = FALSE)
-present_continents <- continents$continent[rowSums(hits) > 0]
-n_continents <- length(present_continents)
-continent_list <- present_continents
-species_list <- split(iucn, iucn$sci_name)
-
-# Create list of dist across continents
-continent_results <- purrr::map_df(names(species_list), function(sp) {
-  sp_poly <- species_list[[sp]]
-  hits <- st_intersects(continents, sp_poly, sparse = FALSE)
-  present <- continents$continent[rowSums(hits) > 0]
-  tibble(
-    Name = sp,
-    n_continents = length(present),
-    continents = paste(present, collapse = ", ")
-  )
-})
-```
-
 ## Compile all traits
 ```{r all traits data,message=FALSE}
 # Select traits needed
 all_data <- list(
   iucn_status,
   pantheria,
-  rbl,
-  continent_results
+  rbl
 )
 
 traits <- purrr::reduce(all_data, full_join, by = "Name") 
@@ -176,7 +140,7 @@ write_csv(traits, "alltraits.csv")
 ## Reload data after manually changing names that are duplicated
 ```{r trait data processing, message=FALSE, warning=FALSE}
 # Reload trait data after manual fix
-traits <- read_csv("selected_traits_final.csv")
+traits <- read_csv("selected_traits.csv")
 ## In this excel, I've also defined all extinction scenarios manually 
 ```
 
@@ -251,12 +215,14 @@ global_fdiv_original <- traitspace$FD$global$FDiv
 global_extinction_fric <- traitspace_CR_EN_NT$FD$groups$FRich["retained"]
 global_extinction_fdiv <- traitspace_CR_EN_NT$FD$groups$FDiv["retained"]
 global_fric_change <- 100*(global_extinction_fric-global_fric_original)/global_fric_original
+globa_fdiv_change <- 100*(global_extinction_fdiv-global_fdiv_original)/global_fdiv_original
 
 global_results <- tibble::tibble(
   Scenario = c("Global", "Removing CR, EN, NT"),
   FRic = c(global_fric_original, global_extinction_fric),
   FRic_change_percent = c("",global_fric_change),
-  FDiv = c(global_fdiv_original, global_extinction_fdiv)
+  FDiv = c(global_fdiv_original, global_extinction_fdiv),
+  FDiv_change_percent = c("", globa_fdiv_change)
 )
 
 global_results
@@ -268,24 +234,29 @@ traitspace_continent <-  funspace(x = funspace_df_num, PCs=c(1,2), group.vec = f
 plot(x = traitspace_continent, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
 summary(traitspace_continent)
 
+par(mfrow=c(2,2))
 # Removing SA NT
 traitspace_continent_SA <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_SA_NT, n_divisions = 300)
-plot(x = traitspace_continent_SA, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+plot(x = traitspace_continent_SA, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass", main = "South America")
+title("South America only", cex.main = 1)
 summary(traitspace_continent_SA)
 
 # Removing North America NT
 traitspace_continent_NA <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_NA_NT, n_divisions = 300)
-plot(x = traitspace_continent_NA, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+plot(x = traitspace_continent_NA, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+title("North America only", cex.main = 1)
 summary(traitspace_continent_NA)
 
 # Removing Africa NT
 traitspace_continent_Africa <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_Africa_NT, n_divisions = 300)
-plot(x = traitspace_continent_Africa, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+plot(x = traitspace_continent_Africa, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+title("Africa only", cex.main = 1)
 summary(traitspace_continent_Africa)
 
 # Removing Eurasia NT
 traitspace_continent_Eurasia <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_Eurasia_NT, n_divisions = 300)
-plot(x = traitspace_continent_Eurasia, type = "groups", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+plot(x = traitspace_continent_Eurasia, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+title("Eurasia only", cex.main = 1)
 summary(traitspace_continent_Eurasia)
 
 # Compile results
@@ -306,12 +277,19 @@ na_fric_change <- 100*(na_fric-global_fric_original)/global_fric_original
 africa_fric_change <- 100*(africa_fric-global_fric_original)/global_fric_original
 eurasia_fric_change <- 100*(eurasia_fric-global_fric_original)/global_fric_original
 
+sa_fdiv_change <- 100*(sa_fdiv-global_fdiv_original)/global_fdiv_original
+na_fdiv_change <- 100*(na_fdiv-global_fdiv_original)/global_fdiv_original
+africa_fdiv_change <- 100*(africa_fdiv-global_fdiv_original)/global_fdiv_original
+eurasia_fdiv_change <- 100*(eurasia_fdiv-global_fdiv_original)/global_fdiv_original
+
 continental_results <- tibble::tibble(
   Continent = c("Global", "South America", "North America",  "Africa", "Eurasia"),
   FRic = c(global_fric_original, sa_fric, na_fric, africa_fric, eurasia_fric),
   FRic_change_percent = c("",sa_fric_change, na_fric_change, 
                           africa_fric_change,eurasia_fric_change),
-  FDiv = c(global_fdiv_original, sa_fdiv, na_fdiv, africa_fdiv, eurasia_fdiv)
+  FDiv = c(global_fdiv_original, sa_fdiv, na_fdiv, africa_fdiv, eurasia_fdiv),
+  FDiv_change_percent = c("",sa_fdiv_change, na_fdiv_change, 
+                          africa_fdiv_change,eurasia_fdiv_change),
 )
 
 continental_results
@@ -330,7 +308,8 @@ SA_cfrich_original <- temp_funspace$FD$global$FRich
 SA_cfrich_new <- temp_funspace$FD$groups$FRich
 SA_cfdiv_original <- temp_funspace$FD$global$FDiv
 SA_cfdiv_new <- temp_funspace$FD$groups$FDiv
-plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, colors = c("cadetblue1", "blue"), pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass") 
+title("South America", cex.main = 1)
 
   # North America
 df_temp <- funspace_df %>% filter(continents == "North America")
@@ -341,7 +320,9 @@ NA_cfrich_original <- temp_funspace$FD$global$FRich
 NA_cfrich_new <- temp_funspace$FD$groups$FRich
 NA_cfdiv_original <- temp_funspace$FD$global$FDiv
 NA_cfdiv_new <- temp_funspace$FD$groups$FDiv
-plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, colors = c("cadetblue1", "blue"), pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+title("North America", cex.main = 1)
+
 
   # Africa 
 df_temp <- funspace_df %>% filter(continents == "Africa")
@@ -352,7 +333,8 @@ Africa_cfrich_original <- temp_funspace$FD$global$FRich
 Africa_cfrich_new <- temp_funspace$FD$groups$FRich
 Africa_cfdiv_original <- temp_funspace$FD$global$FDiv
 Africa_cfdiv_new <- temp_funspace$FD$groups$FDiv
-plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, colors = c("cadetblue1", "blue"), pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+title("Africa", cex.main = 1)
 
   # Eurasia
 df_temp <- funspace_df %>% filter(continents == "Eurasia")
@@ -363,24 +345,29 @@ Eurasia_cfrich_original <- temp_funspace$FD$global$FRich
 Eurasia_cfrich_new <- temp_funspace$FD$groups$FRich
 Eurasia_cfdiv_original <- temp_funspace$FD$global$FDiv
 Eurasia_cfdiv_new <- temp_funspace$FD$groups$FDiv
-plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+plot(x = temp_funspace, type = "groups", which.group = "retained", quant.plot = TRUE, globalContour = T, colors = c("cadetblue1", "blue"), pnt = T, pnt.cex = 0.1, pnt.col = rgb(0.2,0.8,0.1,alpha=0.2), axis.title.line = 3, axis.title.x = "RBL", axis.title.y = "Mass")
+title("Eurasia", cex.main = 1)
 
 # FRich percentage change results
 SA_cfrich_new <- as.numeric(SA_cfrich_new["retained"])
 SA_cfdiv_new <- as.numeric(SA_cfdiv_new["retained"])
 SA_cfrich_percent <- ((SA_cfrich_new-SA_cfrich_original)/SA_cfrich_original)*100
+SA_cfdiv_percent <- ((SA_cfdiv_new-SA_cfdiv_original)/SA_cfdiv_original)*100
 
 NA_cfrich_new <- as.numeric(NA_cfrich_new["retained"])
 NA_cfdiv_new <- as.numeric(NA_cfdiv_new["retained"])
 NA_cfrich_percent <- ((NA_cfrich_new-NA_cfrich_original)/NA_cfrich_original)*100
+NA_cfdiv_percent <- ((NA_cfdiv_new-NA_cfdiv_original)/NA_cfdiv_original)*100
 
 Africa_cfrich_new <- as.numeric(Africa_cfrich_new["retained"])
 Africa_cfdiv_new <- as.numeric(Africa_cfdiv_new["retained"])
 Africa_cfrich_percent <- ((Africa_cfrich_new-Africa_cfrich_original)/Africa_cfrich_original)*100
+Africa_cfdiv_percent <- ((Africa_cfdiv_new-Africa_cfdiv_original)/Africa_cfdiv_original)*100
 
 Eurasia_cfrich_new <- as.numeric(Eurasia_cfrich_new["retained"])
 Eurasia_cfdiv_new <- as.numeric(Eurasia_cfdiv_new["retained"])
 Eurasia_cfrich_percent <- ((Eurasia_cfrich_new-Eurasia_cfrich_original)/Eurasia_cfrich_original)*100
+Eurasia_cfdiv_percent <- ((Eurasia_cfdiv_new-Eurasia_cfdiv_original)/Eurasia_cfdiv_original)*100
 
 # Compile results
 continent_standalone_results <- tibble::tibble(
@@ -390,7 +377,8 @@ continent_standalone_results <- tibble::tibble(
            Africa_cfrich_original, Africa_cfrich_new, Eurasia_cfrich_original, Eurasia_cfrich_new),
   Change_in_FRic = c("-", SA_cfrich_percent, "-", NA_cfrich_percent, "-", Africa_cfrich_percent, "-", Eurasia_cfrich_percent),
   FDiv = c(SA_cfdiv_original, SA_cfdiv_new, NA_cfdiv_original, NA_cfdiv_new, 
-           Africa_cfdiv_original, Africa_cfdiv_new, Eurasia_cfdiv_original, Eurasia_cfdiv_new))
+           Africa_cfdiv_original, Africa_cfdiv_new, Eurasia_cfdiv_original, Eurasia_cfdiv_new),
+  Change_in_FDiv = c("-", SA_cfdiv_percent, "-", NA_cfdiv_percent, "-", Africa_cfdiv_percent, "-", Eurasia_cfdiv_percent))
 
 continent_standalone_results
 ```
@@ -665,11 +653,11 @@ for (nm in names(events_list)) {
     pnt.col = rgb(0.2,0.8,0.1,alpha=0.2),
     axis.title.x = "RBL",
     axis.title.y = "Mass",
-    axis.title.cex = 0.7,
-    axis.cex = 0.7
+    axis.title.cex = 0.8,
+    axis.cex = 0.5
   )
 
-  title(gsub("_"," ",nm), cex.main = 1)
+  title(gsub("_"," ",nm), cex.main = 1.1)
 }
 
 # Only major extinction events
