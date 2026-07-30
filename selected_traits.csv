@@ -1,0 +1,51 @@
+Name,Common_Name,IUCN_status,continents,RBL_original,Mass_original,Extinction_CR_EN_NT,Extinction_SA_NT,Extinction_NA_NT,Extinction_Africa_NT,Extinction_Eurasia_NT
+Canis_adustus,Side-striped jackal,LC,Africa,0.66,9.15,retained,retained,retained,retained,retained
+Canis_anthus,African golden wolf,LC,Africa,0.667699756,7.925,retained,retained,retained,retained,retained
+Canis_lupus,Grey wolf,LC,Africa,0.72,62,retained,retained,retained,retained,retained
+Canis_mesomelas,Black-backed jackal,LC,Africa,0.66,8.5,retained,retained,retained,retained,retained
+Canis_simensis,Ethiopian wolf,EN,Africa,0.664,13.4,extinct,retained,retained,extinct,retained
+Lycaon_pictus,African wild dog,EN,Africa,0.72,25,extinct,retained,retained,extinct,retained
+Otocyon_megalotis,Bat-eared fox,LC,Africa,0.529641169,4.225,retained,retained,retained,retained,retained
+Vulpes_cana,Blanfords fox,LC,Africa,0.712,1.15,retained,retained,retained,retained,retained
+Vulpes_chama,Cape fox,LC,Africa,0.623931,1.15,retained,retained,retained,retained,retained
+Vulpes_pallida,Pale fox,LC,Africa,0.656,2.8,retained,retained,retained,retained,retained
+Vulpes_rueppellii,Ruppells fox,LC,Africa,0.677,1.575,retained,retained,retained,retained,retained
+Vulpes_vulpes,Red fox,LC,Africa,0.629,7,retained,retained,retained,retained,retained
+Vulpes_zerda,Fennec fox,LC,Africa,0.655,1.335,retained,retained,retained,retained,retained
+Canis_aureus,Golden jackal,LC,Eurasia,0.64,7.925,retained,retained,retained,retained,retained
+Canis_lupus,Grey wolf,LC,Eurasia,0.72,62,retained,retained,retained,retained,retained
+Canis_lupus,Grey wolf,LC,Eurasia,0.72,62,retained,retained,retained,retained,retained
+Cuon_alpinus,Dhole,EN,Eurasia,0.74,14.5,extinct,retained,retained,retained,extinct
+Nyctereutes_procyonoides,Raccoon dog,LC,Eurasia,0.612,7.7,retained,retained,retained,retained,retained
+Nyctereutes_procyonoides,Raccoon dog,LC,Eurasia,0.612,7.7,retained,retained,retained,retained,retained
+Vulpes_bengalensis,Indian fox,LC,Eurasia,0.666,2.7,retained,retained,retained,retained,retained
+Vulpes_cana,Blanfords fox,LC,Eurasia,0.712,1.15,retained,retained,retained,retained,retained
+Vulpes_corsac,Corsac,LC,Eurasia,0.693,2.275,retained,retained,retained,retained,retained
+Vulpes_corsac,Corsac,LC,Eurasia,0.693,2.275,retained,retained,retained,retained,retained
+Vulpes_ferrilata,Tibetan fox,LC,Eurasia,0.738,3.725,retained,retained,retained,retained,retained
+Vulpes_lagopus,Arctic fox,LC,Eurasia,0.701449,3.625,retained,retained,retained,retained,retained
+Vulpes_lagopus,Arctic fox,LC,Eurasia,0.701449,3.625,retained,retained,retained,retained,retained
+Vulpes_rueppellii,Ruppells fox,LC,Eurasia,0.677,1.575,retained,retained,retained,retained,retained
+Vulpes_vulpes,Red fox,LC,Eurasia,0.629,7,retained,retained,retained,retained,retained
+Vulpes_vulpes,Red fox,LC,Eurasia,0.629,7,retained,retained,retained,retained,retained
+Canis_latrans,Coyote,LC,North America,0.66,11.3,retained,retained,retained,retained,retained
+Canis_lupus,Grey wolf,LC,North America,0.72,62,retained,retained,retained,retained,retained
+Canis_rufus,Red wolf,CR,North America,0.690713627,28,extinct,retained,extinct,retained,retained
+Urocyon_cinereoargenteus,Gray fox,LC,North America,0.613,3.7,retained,retained,retained,retained,retained
+Urocyon_littoralis,Island fox,NT,North America,0.572,1.9,extinct,retained,extinct,retained,retained
+Vulpes_lagopus,Arctic fox,LC,North America,0.701449,3.625,retained,retained,retained,retained,retained
+Vulpes_macrotis,Kit fox,LC,North America,0.642,2.05,retained,retained,retained,retained,retained
+Vulpes_velox,Swift fox,LC,North America,0.6788068,2.275,retained,retained,retained,retained,retained
+Vulpes_vulpes,Red fox,LC,North America,0.629,7,retained,retained,retained,retained,retained
+Vulpes_vulpes,Red fox,LC,Oceania,0.629,7,retained,retained,retained,retained,retained
+Atelocynus_microtis,Short-eared dog,NT,South America,0.6445953,9.5,extinct,extinct,retained,retained,retained
+Cerdocyon_thous,Crab-eating fox,LC,South America,0.59,6.5,retained,retained,retained,retained,retained
+Chrysocyon_brachyurus,Maned wolf,NT,South America,0.57,25.25,extinct,extinct,retained,retained,retained
+Lycalopex_culpaeus,Culpeo (Andean fox),LC,South America,0.68,7.775,retained,retained,retained,retained,retained
+Lycalopex_fulvipes,Darwin's fox,EN,South America,0.6296927,2.825,extinct,extinct,retained,retained,retained
+Lycalopex_griseus,South American gray fox,LC,South America,0.6416532,3.5,retained,retained,retained,retained,retained
+Lycalopex_gymnocercus,Pampas fox,LC,South America,0.6345991,5.175,retained,retained,retained,retained,retained
+Lycalopex_sechurae,Sechuran fox,NT,South America,0.6201816,3.7,extinct,extinct,retained,retained,retained
+Lycalopex_vetulus,Hoary fox,NT,South America,0.565,3.275,extinct,extinct,retained,retained,retained
+Speothos_venaticus,Bush dog,NT,South America,0.637,6.5,extinct,extinct,retained,retained,retained
+Urocyon_cinereoargenteus,Gray fox,LC,South America,0.613,3.7,retained,retained,retained,retained,retained
