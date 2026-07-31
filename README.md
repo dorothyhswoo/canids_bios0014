@@ -1,5 +1,5 @@
-# BIOS0014 Canids Project RSJZ0
-# Supervisors: Dr Lucas Porto, Dr Natalie Cooper
+# BIOS0014 (Candidate Number: RSJZ0)
+Supervisors: Dr Lucas Porto, Dr Natalie Cooper
 
 For code used in this project, please see *Canids_Final.Rmd*.
 
