@@ -9,12 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Functional Diversity of Canids (Canidae) Under Projected Anthropogenic Extinction as Determined by Functional Trait-space Analysis
-
-## RSJZ0, UCL MRes Masters Dissertation
+## RSJZ0, UCL MRes Masters Dissertation (BIOS0014)
 ## Supervisors: Dr Lucas Porto, Dr Natalie Cooper (Natural History Museum, London)
-
-The code below was used to answer study objects in the dissertation
 
 # Project set up
 ## Load packages
