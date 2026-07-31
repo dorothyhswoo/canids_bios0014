@@ -1,0 +1,37 @@
+﻿Name,Common Name,IUCN status,Continents,RBL,Body mass (kg)
+Atelocynus microtis,Short-eared dog,NT,South America,0.645,9.5
+Canis adustus,Side-striped jackal,LC,Africa,0.66,9.15
+Canis anthus,African golden wolf,LC,Africa,0.668,7.925
+Canis aureus,Golden jackal,LC,Eurasia,0.64,7.925
+Canis latrans,Coyote,LC,North America,0.66,11.3
+Canis lupus,Grey wolf,LC,"Africa, Eurasia, North America",0.72,62
+Canis mesomelas,Black-backed jackal,LC,Africa,0.66,8.5
+Canis rufus,Red wolf,CR,North America,0.691,28
+Canis simensis,Ethiopian wolf,EN,Africa,0.664,13.4
+Cerdocyon thous,Crab-eating fox,LC,South America,0.59,6.5
+Chrysocyon brachyurus,Maned wolf,NT,South America,0.57,25.25
+Cuon alpinus,Dhole,EN,Eurasia,0.74,14.5
+Lycalopex culpaeus,Culpeo (Andean fox),LC,South America,0.68,7.775
+Lycalopex fulvipes,Darwin's fox,EN,South America,0.63,2.825
+Lycalopex griseus,South American gray fox,LC,South America,0.642,3.5
+Lycalopex gymnocercus,Pampas fox,LC,South America,0.635,5.175
+Lycalopex sechurae,Sechuran fox,NT,South America,0.62,3.7
+Lycalopex vetulus,Hoary fox,NT,South America,0.565,3.275
+Lycaon pictus,African wild dog,EN,Africa,0.72,25
+Nyctereutes procyonoides,Raccoon dog,LC,Eurasia,0.612,7.7
+Otocyon megalotis,Bat-eared fox,LC,Africa,0.53,4.225
+Speothos venaticus,Bush dog,NT,South America,0.637,6.5
+Urocyon cinereoargenteus,Gray fox,LC,"North America, South America",0.613,3.7
+Urocyon littoralis,Island fox,NT,North America,0.572,1.9
+Vulpes bengalensis,Indian fox,LC,Eurasia,0.666,2.7
+Vulpes cana,Blanfords fox,LC,"Africa, Eurasia",0.712,1.15
+Vulpes chama,Cape fox,LC,Africa,0.624,1.15
+Vulpes corsac,Corsac,LC,Eurasia,0.693,2.275
+Vulpes ferrilata,Tibetan fox,LC,Eurasia,0.738,3.725
+Vulpes lagopus,Arctic fox,LC,"Eurasia, North America",0.701,3.625
+Vulpes macrotis,Kit fox,LC,North America,0.642,2.05
+Vulpes pallida,Pale fox,LC,Africa,0.656,2.8
+Vulpes rueppellii,Ruppells fox,LC,"Africa, Eurasia",0.677,1.575
+Vulpes velox,Swift fox,LC,North America,0.679,2.275
+Vulpes vulpes,Red fox,LC,"Africa, Eurasia, North America, Oceania",0.629,7
+Vulpes zerda,Fennec fox,LC,Africa,0.655,1.335
