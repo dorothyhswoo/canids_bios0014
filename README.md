@@ -1,5 +1,5 @@
 # BIOS0014 (Candidate Number: RSJZ0)
-## *Canidae* Functional Diversity: Projected future extinctions erase specific functions across space 
+## Projected future extinctions threaten unique ecological functions in Canidae
 Supervisors: Dr Lucas Porto, Dr Natalie Cooper
 
 For code used in this project, please see *Canids_Final.Rmd*.
