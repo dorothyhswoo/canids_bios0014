@@ -12,132 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ## RSJZ0, UCL MRes Masters Dissertation (BIOS0014)
 ## Supervisors: Dr Lucas Porto, Dr Natalie Cooper (Natural History Museum, London)
 
-# Project set up
-## Load packages
-```{r load packages, message=FALSE, warning=FALSE}
-library(devtools)
-library(tidyverse)
-library(ggplot2)
-library(dplyr)
-library(patchwork)
-library(ggthemes)
-library(lme4)
-library("lmerTest")
-library(emmeans)
-library(vegan)
-library(sf)
-library(stringr)
-library(terra)
-library(purrr)
-library(missMDA) 
-library(FactoMineR) 
-library(nnet) 
-library(randomForest)
-library(viridis)
-library(factoextra)
-library(knitr)
-library(patchwork)
-library(tidyr)
-library(magick)
-library(grid)
-library(ggforce)
-library(png)
-library(Claddis)  
-library(geoscale) 
-library(dismo)  
-library(ape)
-library(tree)
-library(funspace)
-library(traitdata)
-library(reticulate)
-library(iucnsim)
-library(rredlist)
-library(corrplot)
-library(psych)
-library(scales)
-library(plotly)
-library(ggrepel)
-library(geometry)
-library(gridExtra)
-library(svglite)
-library(geiger)
-library(cowplot)
-library(tibble)
-library(sp)
-library(zoo)
-library(gganimate)
-library(phytools)
-library(palaeoverse)
-library(Rphylopars)
-library(hypervolume)
-library(rgl)
-library(FNN)
-library(picante)
-library(lubridate)
-```
-
-# Data extraction
-## Load phylogeny 
-```{r load phylogeny,message=FALSE,warning=FALSE}
-# Load phylogenetic tree
-phylo <- ape::read.nexus("SFaurby_phylogeny.nex")   
-
-# Get all species name
-canidae_species_names <- read.csv(
-  "canidae_SFaurby.csv",
-  stringsAsFactors = FALSE
-) 
-canidae_species_names <- paste(canidae_species_names$Genus, canidae_species_names$Species, sep = "_")
-
-# Trim tree to contain only Canidae
-canidae_phylo <- sapply(phylo, function(tr) {
-  any(tr$tip.label %in% canidae_species_names)
-})
-phylo_canidae <- phylo[canidae_phylo]
-phylo_canidae <- lapply(phylo_canidae, function(tr) {
-  keep <- intersect(tr$tip.label, canidae_species_names)
-  drop.tip(tr, setdiff(tr$tip.label, keep))
-})
-class(phylo_canidae) <- "multiPhylo"
-```
-
-## Load data with IUCN status
-```{r iucn, message=FALSE}
-iucn_status <- read_csv("iucn_status.csv")
-```
-
-## Load PanTHERIA data 
-```{r load pantheria data, warning=FALSE, message=FALSE}
-# pantheria
-data("pantheria")
-pantheria <- pantheria %>% filter(Family=="Canidae") %>% mutate(Name=paste0(Genus,"_",Species))
-pantheria <- pantheria[, colMeans(!is.na(pantheria)) > 0.5] # retain columns with <50% missing data
-```
-
-## Load RBL dataset
-```{r rbl data, warning=FALSE, message=FALSE}
-rbl <- read_csv("rbl_martina.csv") %>% mutate(Name = TaxonName) %>% dplyr::select(Name, RBL)
-```
-
-## Compile all traits
-```{r all traits data,message=FALSE}
-# Select traits needed
-all_data <- list(
-  iucn_status,
-  pantheria,
-  rbl
-)
-
-traits <- purrr::reduce(all_data, full_join, by = "Name") 
-
-write_csv(traits, "alltraits.csv")
-```
-
-
 # Data preparationg and processing 
-## Reload data after manually changing names that are duplicated
+## Import data (data was manually compiled on Excel before imported to R)
 ```{r trait data processing, message=FALSE, warning=FALSE}
-# Reload trait data after manual fix
 traits <- read_csv("selected_traits.csv") # please note that in this excel, I've also defined all extinction scenarios manually 
 ```
 
@@ -167,6 +44,51 @@ funspace_df <- traits %>% dplyr::select(
   Name, IUCN_status, continents, RBL_original_log_scaled, Mass_original_log_scaled,
   Extinction_CR_EN_NT, Extinction_SA_NT, Extinction_NA_NT, Extinction_Africa_NT, Extinction_Eurasia_NT) %>% 
   mutate(RBL = RBL_original_log_scaled, Mass = Mass_original_log_scaled) 
+```
+
+## Define IUCN colors 
+```{r iucn colors}
+# Define IUCN colors
+iucn_cols <- c(
+  "LC" = "grey80",
+  "NT" = "darkturquoise",
+  "EN" = "orange",
+  "CR" = "red")
+```
+
+## Define continent colours
+```{r cont colors}
+# Define continent colors
+continent_cols <- c(
+  "Global" = "black",
+  "South America" = "hotpink",
+  "North America" = "lightblue",
+  "Africa" = "lightgreen",
+  "Eurasia" = "yellow",
+  "Asia" = "orange",
+  "Europe" = "purple")
+```
+
+## Plot species on a graph for ease
+```{r plot}
+species_iucn <- ggplot(funspace_df, aes(x = RBL, y = Mass, color = IUCN_status,
+                                        text = paste0("Species: ", Name,
+                                                                      "<br>Status: ", IUCN_status, 
+                                                                      "<br>Continent: ", continents))) +
+  geom_point(size = 3) + theme_clean() +
+  labs(x = "RBL (log-transformed and rescaled)", y = "Mass  (log-transformed and rescaled)") +
+  scale_color_manual(values = iucn_cols, name = "IUCN Red List status")
+
+species_continent <- ggplot(funspace_df, aes(x = RBL, y = Mass, color = continents,
+                                                        text = paste0("Species: ", Name,
+                                                                      "<br>Status: ", IUCN_status, 
+                                                                      "<br>Continent: ", continents))) + 
+                                  geom_point(size = 3) + theme_clean() +
+  labs(x = "RBL (log-transformed and rescaled)", y = "Mass  (log-transformed and rescaled)") +
+  scale_color_manual(values = continent_cols, name = "Continents")
+  
+interactive_species_iucn <- ggplotly(species_iucn, tooltip = "text")
+interactive_species_continent <- ggplotly(scores_plot_continent, tooltip = "text")
 ```
 
 # Research Objective 1: How do extinction events affect FD globally
