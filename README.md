@@ -12,4 +12,6 @@ For relevant files used in the code, please see:
 1. Full compiled dataset for extant canids: *selected_traits.csv*
 2. Mass and RBL data for extinct canids: *mass_&_RBL_porto.txt*
 3. Fossil occurrence data from the Paleobiology Database (PBDB) extracted on 20/5/2026: *pbdb_data.csv*
-3. Time of speciation and extinction for extinct canids: *TS_TE_Canidae.txt*
+4. Time of speciation and extinction for extinct canids: *TS_TE_Canidae.txt*
+Please note the Phylogeny used is not attached due to file upload size limitations. 
+Please see Faurby et al., (2024): *https://doi.org/10.1098/rspb.2024.0473*

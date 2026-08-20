@@ -170,7 +170,7 @@ funspace_df <- traits %>% dplyr::select(
 ```
 
 # Research Objective 1: How do extinction events affect FD globally
-## Section 1: Global extinction of threatened and near-threatened species
+## 1.1: Global extinction of threatened and near-threatened species
 ```{r funspace global}
 # Create a dataframe for funspace that only contains numeric values (RBL and Mass)
 funspace_df_num <- funspace_df %>% dplyr::select(RBL, Mass)
@@ -205,7 +205,7 @@ global_results <- tibble::tibble(
 
 global_results
 ```
-## Section 2: Continental extinction of threatened and near-threatened species
+## 1.2: Global trait-space: continent-specific extinction of threatened and near-threatened species
 ```{r funspace global continent specific}
 # Construct trait space for each continent to visualise what regions of the trait-space does each continent occupy
 traitspace_continent <-  funspace(x = funspace_df_num, PCs=c(1,2), group.vec = funspace_df$continents, n_divisions = 300)
@@ -366,7 +366,330 @@ continent_standalone_results <- tibble::tibble(
 continent_standalone_results
 ```
 
-# Research Objective 3: How do contemporary, anthropogenic extinction events compare to past historical events
+# Sensitivity check for Research Objectives 1 and 2 using probability thresholds of 0.99 and 0.995
+## Using probability threshold of 0.99
+```{r sensitivity check 0.99}
+### Part 1: Global results ###
+## Part 1.1: Global extinction of CR, EN, NT ##
+# Construct a traitspace with probability threshold 0.99
+traitspace_0.99 <- funspace(x = funspace_df_num, n_divisions = 300, threshold=0.99)
+summary(traitspace_0.99)
+# Construct a traitspace with probability threshold 0.99 after removal of CR, EN, NT species
+traitspace_CR_EN_NT_0.99 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_CR_EN_NT, n_divisions = 300, threshold=0.99)
+summary(traitspace_CR_EN_NT_0.99)
+# Collate all stats from the 2 trait spaces above
+global_fric_original_0.99 <- traitspace_0.99$FD$global$FRich
+global_fdiv_original_0.99 <- traitspace_0.99$FD$global$FDiv
+global_extinction_fric_0.99 <- traitspace_CR_EN_NT_0.99$FD$groups$FRich["retained"]
+global_extinction_fdiv_0.99 <- traitspace_CR_EN_NT_0.99$FD$groups$FDiv["retained"]
+global_fric_change_0.99 <- 100*(global_extinction_fric_0.99-global_fric_original_0.99)/global_fric_original_0.99
+globa_fdiv_change_0.99 <- 100*(global_extinction_fdiv_0.99-global_fdiv_original_0.99)/global_fdiv_original_0.99
+
+global_results_0.99 <- tibble::tibble(
+  Scenario = c("Global", "Removing CR, EN, NT"),
+  FRic = c(global_fric_original_0.99, global_extinction_fric_0.99),
+  FRic_change_percent = c("",global_fric_change_0.99),
+  FDiv = c(global_fdiv_original_0.99, global_extinction_fdiv_0.99),
+  FDiv_change_percent = c("", globa_fdiv_change_0.99)
+)
+
+
+## Part 1.2: Global trait space of continental extinction ##
+traitspace_continent_0.99 <-  funspace(x = funspace_df_num, PCs=c(1,2), group.vec = funspace_df$continents, n_divisions = 300, threshold=0.99)
+summary(traitspace_continent_0.99)
+
+# Removing threatened and near-threatened species in South America
+traitspace_continent_SA_0.99 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_SA_NT, n_divisions = 300,threshold=0.99)
+summary(traitspace_continent_SA_0.99)
+
+# Removing threatened and near-threatened species in North America
+traitspace_continent_NA_0.99 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_NA_NT, n_divisions = 300,threshold=0.99)
+summary(traitspace_continent_NA_0.99)
+
+# Removing threatened and near-threatened species in Africa
+traitspace_continent_Africa_0.99 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_Africa_NT, n_divisions = 300,threshold=0.99)
+summary(traitspace_continent_Africa_0.99)
+
+# Removing threatened and near-threatened species in Eurasia
+traitspace_continent_Eurasia_0.99 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_Eurasia_NT, n_divisions = 300,threshold=0.99)
+summary(traitspace_continent_Eurasia_0.99)
+
+# Compile results of FRic and FDiv
+sa_fric_0.99 <- traitspace_continent_SA_0.99$FD$groups$FRich["retained"]
+sa_fdiv_0.99 <- traitspace_continent_SA_0.99$FD$groups$FDiv["retained"]
+
+na_fric_0.99 <- traitspace_continent_NA_0.99$FD$groups$FRich["retained"]
+na_fdiv_0.99 <- traitspace_continent_NA_0.99$FD$groups$FDiv["retained"]
+
+africa_fric_0.99 <- traitspace_continent_Africa_0.99$FD$groups$FRich["retained"]
+africa_fdiv_0.99 <- traitspace_continent_Africa_0.99$FD$groups$FDiv["retained"]
+
+eurasia_fric_0.99 <- traitspace_continent_Eurasia_0.99$FD$groups$FRich["retained"]
+eurasia_fdiv_0.99 <- traitspace_continent_Eurasia_0.99$FD$groups$FDiv["retained"]
+
+sa_fric_change_0.99 <- 100*(sa_fric_0.99-global_fric_original_0.99)/global_fric_original_0.99
+na_fric_change_0.99 <- 100*(na_fric_0.99-global_fric_original_0.99)/global_fric_original_0.99
+africa_fric_change_0.99 <- 100*(africa_fric_0.99-global_fric_original_0.99)/global_fric_original_0.99
+eurasia_fric_change_0.99 <- 100*(eurasia_fric_0.99-global_fric_original_0.99)/global_fric_original_0.99
+
+sa_fdiv_change_0.99 <- 100*(sa_fdiv_0.99-global_fdiv_original_0.99)/global_fdiv_original_0.99
+na_fdiv_change_0.99 <- 100*(na_fdiv_0.99-global_fdiv_original_0.99)/global_fdiv_original_0.99
+africa_fdiv_change_0.99 <- 100*(africa_fdiv_0.99-global_fdiv_original_0.99)/global_fdiv_original_0.99
+eurasia_fdiv_change_0.99 <- 100*(eurasia_fdiv_0.99-global_fdiv_original_0.99)/global_fdiv_original_0.99
+
+continental_results_0.99 <- tibble::tibble(
+  Continent = c("Global", "South America", "North America",  "Africa", "Eurasia"),
+  FRic = c(global_fric_original_0.99, sa_fric_0.99, na_fric_0.99, africa_fric_0.99, eurasia_fric_0.99),
+  FRic_change_percent = c("",sa_fric_change_0.99, na_fric_change_0.99, 
+                          africa_fric_change_0.99,eurasia_fric_change_0.99),
+  FDiv = c(global_fdiv_original_0.99, sa_fdiv_0.99, na_fdiv_0.99, africa_fdiv_0.99, eurasia_fdiv_0.99),
+  FDiv_change_percent = c("",sa_fdiv_change_0.99, na_fdiv_change_0.99, 
+                          africa_fdiv_change_0.99,eurasia_fdiv_change_0.99),
+)
+
+continental_results_0.99
+
+### Part 2: Standalone continental results ### 
+
+# South America trait-space and extinction
+df_temp <- funspace_df %>% filter(continents == "South America") # filter only species found in South America to construct relevant trait-space
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace_0.99 <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_SA_NT, n_divisions = 300, threshold=0.99)
+summary(temp_funspace_0.99)
+# Extract relevant statistics from the trait-space
+SA_cfrich_original_0.99 <- temp_funspace_0.99$FD$global$FRich
+SA_cfrich_new_0.99 <- temp_funspace_0.99$FD$groups$FRich
+SA_cfdiv_original_0.99 <- temp_funspace_0.99$FD$global$FDiv
+SA_cfdiv_new_0.99 <- temp_funspace_0.99$FD$groups$FDiv
+
+# North America trait-space and extinction
+df_temp <- funspace_df %>% filter(continents == "North America") 
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace_0.99 <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_NA_NT, n_divisions = 300, threshold=0.99)
+summary(temp_funspace_0.99)
+NA_cfrich_original_0.99 <- temp_funspace_0.99$FD$global$FRich
+NA_cfrich_new_0.99 <- temp_funspace_0.99$FD$groups$FRich
+NA_cfdiv_original_0.99 <- temp_funspace_0.99$FD$global$FDiv
+NA_cfdiv_new_0.99 <- temp_funspace_0.99$FD$groups$FDiv
+
+# Africa trait-space and extinction
+df_temp <- funspace_df %>% filter(continents == "Africa")
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace_0.99 <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_Africa_NT, n_divisions = 300, threshold=0.99)
+summary(temp_funspace_0.99)
+Africa_cfrich_original_0.99 <- temp_funspace_0.99$FD$global$FRich
+Africa_cfrich_new_0.99 <- temp_funspace_0.99$FD$groups$FRich
+Africa_cfdiv_original_0.99 <- temp_funspace_0.99$FD$global$FDiv
+Africa_cfdiv_new_0.99 <- temp_funspace_0.99$FD$groups$FDiv
+
+# Eurasia trait-space and extinction
+df_temp <- funspace_df %>% filter(continents == "Eurasia")
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace_0.99 <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_Eurasia_NT, n_divisions = 300, threshold=0.99)
+summary(temp_funspace_0.99)
+Eurasia_cfrich_original_0.99 <- temp_funspace_0.99$FD$global$FRich
+Eurasia_cfrich_new_0.99 <- temp_funspace_0.99$FD$groups$FRich
+Eurasia_cfdiv_original_0.99 <- temp_funspace_0.99$FD$global$FDiv
+Eurasia_cfdiv_new_0.99 <- temp_funspace_0.99$FD$groups$FDiv
+
+SA_cfrich_new_0.99 <- as.numeric(SA_cfrich_new_0.99["retained"])
+SA_cfdiv_new_0.99 <- as.numeric(SA_cfdiv_new_0.99["retained"])
+SA_cfrich_percent_0.99 <- ((SA_cfrich_new_0.99-SA_cfrich_original_0.99)/SA_cfrich_original_0.99)*100
+SA_cfdiv_percent_0.99 <- ((SA_cfdiv_new_0.99-SA_cfdiv_original_0.99)/SA_cfdiv_original_0.99)*100
+
+NA_cfrich_new_0.99 <- as.numeric(NA_cfrich_new_0.99["retained"])
+NA_cfdiv_new_0.99 <- as.numeric(NA_cfdiv_new_0.99["retained"])
+NA_cfrich_percent_0.99 <- ((NA_cfrich_new_0.99-NA_cfrich_original_0.99)/NA_cfrich_original_0.99)*100
+NA_cfdiv_percent_0.99 <- ((NA_cfdiv_new_0.99-NA_cfdiv_original_0.99)/NA_cfdiv_original_0.99)*100
+
+Africa_cfrich_new_0.99 <- as.numeric(Africa_cfrich_new_0.99["retained"])
+Africa_cfdiv_new_0.99 <- as.numeric(Africa_cfdiv_new_0.99["retained"])
+Africa_cfrich_percent_0.99 <- ((Africa_cfrich_new_0.99-Africa_cfrich_original_0.99)/Africa_cfrich_original_0.99)*100
+Africa_cfdiv_percent_0.99 <- ((Africa_cfdiv_new_0.99-Africa_cfdiv_original_0.99)/Africa_cfdiv_original_0.99)*100
+
+Eurasia_cfrich_new_0.99 <- as.numeric(Eurasia_cfrich_new_0.99["retained"])
+Eurasia_cfdiv_new_0.99 <- as.numeric(Eurasia_cfdiv_new_0.99["retained"])
+Eurasia_cfrich_percent_0.99 <- ((Eurasia_cfrich_new_0.99-Eurasia_cfrich_original_0.99)/Eurasia_cfrich_original_0.99)*100
+Eurasia_cfdiv_percent_0.99 <- ((Eurasia_cfdiv_new_0.99-Eurasia_cfdiv_original_0.99)/Eurasia_cfdiv_original_0.99)*100
+
+continent_standalone_results_0.99 <- tibble::tibble(
+  Continent = c("South America", "South America", "North America", "North America", "Africa","Africa", "Eurasia", "Eurasia"),
+  Scenario = c("Original", "Post-extinction", "Original", "Post-extinction", "Original", "Post-extinction", "Original", "Post-extinction"),
+  FRic = c(SA_cfrich_original_0.99, SA_cfrich_new_0.99, NA_cfrich_original_0.99, NA_cfrich_new_0.99, 
+           Africa_cfrich_original_0.99, Africa_cfrich_new_0.99, Eurasia_cfrich_original_0.99, Eurasia_cfrich_new_0.99),
+  Change_in_FRic = c("-", SA_cfrich_percent_0.99, "-", NA_cfrich_percent_0.99, "-", Africa_cfrich_percent_0.99, "-", Eurasia_cfrich_percent_0.99),
+  FDiv = c(SA_cfdiv_original_0.99, SA_cfdiv_new_0.99, NA_cfdiv_original_0.99, NA_cfdiv_new_0.99, 
+           Africa_cfdiv_original_0.99, Africa_cfdiv_new_0.99, Eurasia_cfdiv_original_0.99, Eurasia_cfdiv_new_0.99),
+  Change_in_FDiv = c("-", SA_cfdiv_percent_0.99, "-", NA_cfdiv_percent_0.99, "-", Africa_cfdiv_percent_0.99, "-", Eurasia_cfdiv_percent_0.99))
+
+### All results from Parts 1 and 2 ### 
+global_results_0.99
+continental_results_0.99
+continent_standalone_results_0.99
+```
+
+2. Using probability threshold of 0.995
+```{r sensitivity check 0.995}
+### Part 1: Global Results ###
+## Part 1.1: Global extinction of CR, EN, NT ##
+# Construct a traitspace with probability threshold 0.995
+traitspace_0.995 <- funspace(x = funspace_df_num, n_divisions = 300, threshold=0.995)
+summary(traitspace_0.995)
+# Construct a traitspace with probability threshold 0.995 after removal of CR, EN, NT species
+traitspace_CR_EN_NT_0.995 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_CR_EN_NT, n_divisions = 300, threshold=0.995)
+summary(traitspace_CR_EN_NT_0.995)
+# Collate all stats from the 2 trait spaces above
+global_fric_original_0.995 <- traitspace_0.995$FD$global$FRich
+global_fdiv_original_0.995 <- traitspace_0.995$FD$global$FDiv
+global_extinction_fric_0.995 <- traitspace_CR_EN_NT_0.995$FD$groups$FRich["retained"]
+global_extinction_fdiv_0.995 <- traitspace_CR_EN_NT_0.995$FD$groups$FDiv["retained"]
+global_fric_change_0.995 <- 100*(global_extinction_fric_0.995-global_fric_original_0.995)/global_fric_original_0.995
+globa_fdiv_change_0.995 <- 100*(global_extinction_fdiv_0.995-global_fdiv_original_0.995)/global_fdiv_original_0.995
+
+global_results_0.995 <- tibble::tibble(
+  Scenario = c("Global", "Removing CR, EN, NT"),
+  FRic = c(global_fric_original_0.995, global_extinction_fric_0.995),
+  FRic_change_percent = c("",global_fric_change_0.995),
+  FDiv = c(global_fdiv_original_0.995, global_extinction_fdiv_0.995),
+  FDiv_change_percent = c("", globa_fdiv_change_0.995)
+)
+
+
+## Part 1.2: Global trait space of continental extinction ##
+traitspace_continent_0.995 <-  funspace(x = funspace_df_num, PCs=c(1,2), group.vec = funspace_df$continents, n_divisions = 300, threshold=0.995)
+summary(traitspace_continent_0.995)
+
+# Removing threatened and near-threatened species in South America
+traitspace_continent_SA_0.995 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_SA_NT, n_divisions = 300,threshold=0.995)
+summary(traitspace_continent_SA_0.995)
+
+# Removing threatened and near-threatened species in North America
+traitspace_continent_NA_0.995 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_NA_NT, n_divisions = 300,threshold=0.995)
+summary(traitspace_continent_NA_0.995)
+
+# Removing threatened and near-threatened species in Africa
+traitspace_continent_Africa_0.995 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_Africa_NT, n_divisions = 300,threshold=0.995)
+summary(traitspace_continent_Africa_0.995)
+
+# Removing threatened and near-threatened species in Eurasia
+traitspace_continent_Eurasia_0.995 <-  funspace(x = funspace_df_num, group.vec = funspace_df$Extinction_Eurasia_NT, n_divisions = 300,threshold=0.995)
+summary(traitspace_continent_Eurasia_0.995)
+
+# Compile results of FRic and FDiv
+sa_fric_0.995 <- traitspace_continent_SA_0.995$FD$groups$FRich["retained"]
+sa_fdiv_0.995 <- traitspace_continent_SA_0.995$FD$groups$FDiv["retained"]
+
+na_fric_0.995 <- traitspace_continent_NA_0.995$FD$groups$FRich["retained"]
+na_fdiv_0.995 <- traitspace_continent_NA_0.995$FD$groups$FDiv["retained"]
+
+africa_fric_0.995 <- traitspace_continent_Africa_0.995$FD$groups$FRich["retained"]
+africa_fdiv_0.995 <- traitspace_continent_Africa_0.995$FD$groups$FDiv["retained"]
+
+eurasia_fric_0.995 <- traitspace_continent_Eurasia_0.995$FD$groups$FRich["retained"]
+eurasia_fdiv_0.995 <- traitspace_continent_Eurasia_0.995$FD$groups$FDiv["retained"]
+
+sa_fric_change_0.995 <- 100*(sa_fric_0.995-global_fric_original_0.995)/global_fric_original_0.995
+na_fric_change_0.995 <- 100*(na_fric_0.995-global_fric_original_0.995)/global_fric_original_0.995
+africa_fric_change_0.995 <- 100*(africa_fric_0.995-global_fric_original_0.995)/global_fric_original_0.995
+eurasia_fric_change_0.995 <- 100*(eurasia_fric_0.995-global_fric_original_0.995)/global_fric_original_0.995
+
+sa_fdiv_change_0.995 <- 100*(sa_fdiv_0.995-global_fdiv_original_0.995)/global_fdiv_original_0.995
+na_fdiv_change_0.995 <- 100*(na_fdiv_0.995-global_fdiv_original_0.995)/global_fdiv_original_0.995
+africa_fdiv_change_0.995 <- 100*(africa_fdiv_0.995-global_fdiv_original_0.995)/global_fdiv_original_0.995
+eurasia_fdiv_change_0.995 <- 100*(eurasia_fdiv_0.995-global_fdiv_original_0.995)/global_fdiv_original_0.995
+
+continental_results_0.995 <- tibble::tibble(
+  Continent = c("Global", "South America", "North America",  "Africa", "Eurasia"),
+  FRic = c(global_fric_original_0.995, sa_fric_0.995, na_fric_0.995, africa_fric_0.995, eurasia_fric_0.995),
+  FRic_change_percent = c("",sa_fric_change_0.995, na_fric_change_0.995, 
+                          africa_fric_change_0.995,eurasia_fric_change_0.995),
+  FDiv = c(global_fdiv_original_0.995, sa_fdiv_0.995, na_fdiv_0.995, africa_fdiv_0.995, eurasia_fdiv_0.995),
+  FDiv_change_percent = c("",sa_fdiv_change_0.995, na_fdiv_change_0.995, 
+                          africa_fdiv_change_0.995,eurasia_fdiv_change_0.995),
+)
+
+continental_results_0.995
+
+### Part 2: Standalone continental results ### 
+
+# South America trait-space and extinction
+df_temp <- funspace_df %>% filter(continents == "South America") # filter only species found in South America to construct relevant trait-space
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace_0.995 <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_SA_NT, n_divisions = 300, threshold=0.995)
+summary(temp_funspace_0.995)
+# Extract relevant statistics from the trait-space
+SA_cfrich_original_0.995 <- temp_funspace_0.995$FD$global$FRich
+SA_cfrich_new_0.995 <- temp_funspace_0.995$FD$groups$FRich
+SA_cfdiv_original_0.995 <- temp_funspace_0.995$FD$global$FDiv
+SA_cfdiv_new_0.995 <- temp_funspace_0.995$FD$groups$FDiv
+
+# North America trait-space and extinction
+df_temp <- funspace_df %>% filter(continents == "North America") 
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace_0.995 <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_NA_NT, n_divisions = 300, threshold=0.995)
+summary(temp_funspace_0.995)
+NA_cfrich_original_0.995 <- temp_funspace_0.995$FD$global$FRich
+NA_cfrich_new_0.995 <- temp_funspace_0.995$FD$groups$FRich
+NA_cfdiv_original_0.995 <- temp_funspace_0.995$FD$global$FDiv
+NA_cfdiv_new_0.995 <- temp_funspace_0.995$FD$groups$FDiv
+
+# Africa trait-space and extinction
+df_temp <- funspace_df %>% filter(continents == "Africa")
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace_0.995 <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_Africa_NT, n_divisions = 300, threshold=0.995)
+summary(temp_funspace_0.995)
+Africa_cfrich_original_0.995 <- temp_funspace_0.995$FD$global$FRich
+Africa_cfrich_new_0.995 <- temp_funspace_0.995$FD$groups$FRich
+Africa_cfdiv_original_0.995 <- temp_funspace_0.995$FD$global$FDiv
+Africa_cfdiv_new_0.995 <- temp_funspace_0.995$FD$groups$FDiv
+
+# Eurasia trait-space and extinction
+df_temp <- funspace_df %>% filter(continents == "Eurasia")
+df_temp_num <- df_temp %>% dplyr::select(RBL, Mass)
+temp_funspace_0.995 <- funspace(x = df_temp_num, group.vec = df_temp$Extinction_Eurasia_NT, n_divisions = 300, threshold=0.995)
+summary(temp_funspace_0.995)
+Eurasia_cfrich_original_0.995 <- temp_funspace_0.995$FD$global$FRich
+Eurasia_cfrich_new_0.995 <- temp_funspace_0.995$FD$groups$FRich
+Eurasia_cfdiv_original_0.995 <- temp_funspace_0.995$FD$global$FDiv
+Eurasia_cfdiv_new_0.995 <- temp_funspace_0.995$FD$groups$FDiv
+
+SA_cfrich_new_0.995 <- as.numeric(SA_cfrich_new_0.995["retained"])
+SA_cfdiv_new_0.995 <- as.numeric(SA_cfdiv_new_0.995["retained"])
+SA_cfrich_percent_0.995 <- ((SA_cfrich_new_0.995-SA_cfrich_original_0.995)/SA_cfrich_original_0.995)*100
+SA_cfdiv_percent_0.995 <- ((SA_cfdiv_new_0.995-SA_cfdiv_original_0.995)/SA_cfdiv_original_0.995)*100
+
+NA_cfrich_new_0.995 <- as.numeric(NA_cfrich_new_0.995["retained"])
+NA_cfdiv_new_0.995 <- as.numeric(NA_cfdiv_new_0.995["retained"])
+NA_cfrich_percent_0.995 <- ((NA_cfrich_new_0.995-NA_cfrich_original_0.995)/NA_cfrich_original_0.995)*100
+NA_cfdiv_percent_0.995 <- ((NA_cfdiv_new_0.995-NA_cfdiv_original_0.995)/NA_cfdiv_original_0.995)*100
+
+Africa_cfrich_new_0.995 <- as.numeric(Africa_cfrich_new_0.995["retained"])
+Africa_cfdiv_new_0.995 <- as.numeric(Africa_cfdiv_new_0.995["retained"])
+Africa_cfrich_percent_0.995 <- ((Africa_cfrich_new_0.995-Africa_cfrich_original_0.995)/Africa_cfrich_original_0.995)*100
+Africa_cfdiv_percent_0.995 <- ((Africa_cfdiv_new_0.995-Africa_cfdiv_original_0.995)/Africa_cfdiv_original_0.995)*100
+
+Eurasia_cfrich_new_0.995 <- as.numeric(Eurasia_cfrich_new_0.995["retained"])
+Eurasia_cfdiv_new_0.995 <- as.numeric(Eurasia_cfdiv_new_0.995["retained"])
+Eurasia_cfrich_percent_0.995 <- ((Eurasia_cfrich_new_0.995-Eurasia_cfrich_original_0.995)/Eurasia_cfrich_original_0.995)*100
+Eurasia_cfdiv_percent_0.995 <- ((Eurasia_cfdiv_new_0.995-Eurasia_cfdiv_original_0.995)/Eurasia_cfdiv_original_0.995)*100
+
+continent_standalone_results_0.995 <- tibble::tibble(
+  Continent = c("South America", "South America", "North America", "North America", "Africa","Africa", "Eurasia", "Eurasia"),
+  Scenario = c("Original", "Post-extinction", "Original", "Post-extinction", "Original", "Post-extinction", "Original", "Post-extinction"),
+  FRic = c(SA_cfrich_original_0.995, SA_cfrich_new_0.995, NA_cfrich_original_0.995, NA_cfrich_new_0.995, 
+           Africa_cfrich_original_0.995, Africa_cfrich_new_0.995, Eurasia_cfrich_original_0.995, Eurasia_cfrich_new_0.995),
+  Change_in_FRic = c("-", SA_cfrich_percent_0.995, "-", NA_cfrich_percent_0.995, "-", Africa_cfrich_percent_0.995, "-", Eurasia_cfrich_percent_0.995),
+  FDiv = c(SA_cfdiv_original_0.995, SA_cfdiv_new_0.995, NA_cfdiv_original_0.995, NA_cfdiv_new_0.995, 
+           Africa_cfdiv_original_0.995, Africa_cfdiv_new_0.995, Eurasia_cfdiv_original_0.995, Eurasia_cfdiv_new_0.995),
+  Change_in_FDiv = c("-", SA_cfdiv_percent_0.995, "-", NA_cfdiv_percent_0.995, "-", Africa_cfdiv_percent_0.995, "-", Eurasia_cfdiv_percent_0.995))
+
+### All results from Parts 1 and 2 ### 
+global_results_0.995
+continental_results_0.995
+continent_standalone_results_0.995
+```
+
+# Supplementary analyses: How do contemporary, anthropogenic extinction events compare to past historical events?
 ## Use PBDB database to get continent and time information
 ```{r pbdb, warning=FALSE, message=FALSE}
 # Import PBDB information
@@ -375,10 +698,6 @@ pbdb <- pbdb %>% dplyr::select(Name, lng, lat, max_ma, min_ma) %>% mutate(mid_ma
 
 # Convert longitude and latitude points to sf points 
 pbdb_sfpts <- st_as_sf(pbdb, coords = c("lng","lat"), crs = 4326)
-# Overlay with continent 
-pbdb_sfpts <- st_transform(pbdb_sfpts, st_crs(continents))
-# Add new continent column to the dataset
-pbdb <- st_join(pbdb_sfpts, continents["continent"])
 
 # Assign a period for each species
 bins <- time_bins(scale = "international ages")
@@ -394,17 +713,16 @@ pbdb <- left_join(pbdb, bins, by=c("bin_assignment" = "bin"))
 pbdb <- pbdb %>% mutate(period = interval_name) 
 pbdb <- pbdb %>% st_drop_geometry() %>% 
   mutate(mid_ma = mid_ma.x) %>% 
-  dplyr::select(Name, continent, bin_assignment, period, mid_ma) %>% 
-  distinct(Name, continent, period, bin_assignment, mid_ma)
+  dplyr::select(Name, bin_assignment, period, mid_ma) %>% 
+  distinct(Name, period, bin_assignment, mid_ma)
 
 # Mass and RBL data for extinct species and combine that with that of extant species from sections above
 massrbl_porto <- read.delim("mass_&_RBL_porto.txt")
 extinct <- left_join(pbdb,massrbl_porto,by=c("Name" = "species")) 
-extant <- traits %>% dplyr::select(Name, RBL_original, Mass_original, continents) %>% 
+extant <- traits %>% dplyr::select(Name, RBL_original, Mass_original) %>% 
   mutate(period = "extant") %>% 
-  separate_rows(continents, sep = ", ") %>% 
-  mutate(mass = Mass_original, rbl = RBL_original, continent = continents) %>% 
-  dplyr::select(Name, mass, rbl, continent, period)
+  mutate(mass = Mass_original, rbl = RBL_original) %>% 
+  dplyr::select(Name, mass, rbl, period)
 historical <- bind_rows(extant, extinct) 
 historical_global <- historical %>% dplyr::select(Name, rbl, mass, period, bin_assignment, mid_ma) %>% distinct()
 
