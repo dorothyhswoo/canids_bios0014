@@ -1,6 +1,6 @@
 ---
 title: "canid_final"
-author: "Dorothy Woo"
+author: "RSJZ0"
 date: "2026-07-14"
 output: html_document
 ---
